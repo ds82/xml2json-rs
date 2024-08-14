@@ -523,6 +523,15 @@ mod tests {
   }
 
   #[test]
+  fn build_complex() {
+    let mut builder = XmlConfig::new().charkey("_$").attrkey("_").finalize();
+    let xml = builder
+      .build_from_json_string(r#"{"foo":{ "_":{"a1": 1, "a2": true}, "_$": "value" }}"#)
+      .unwrap();
+    assert_eq!(xml, r#"<?xml version="1.0"?><foo a1="1" a2="true">value</foo>"#);
+  }
+
+  #[test]
   fn leaf_node1() {
     let builder = XmlBuilder::default();
     let node = json!({});
