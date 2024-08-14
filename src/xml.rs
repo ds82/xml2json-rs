@@ -269,7 +269,7 @@ impl Default for XmlBuilder {
 }
 
 /// Tag attributes type. A vector of key, value tuples which are each byte arrays
-type TagAttrs<'a> = Vec<(&'a [u8], &'a [u8])>;
+type TagAttrs<'a> = Vec<(&'a [u8], String)>;
 
 impl XmlBuilder {
   // Check if key is an attribute key
@@ -298,10 +298,14 @@ impl XmlBuilder {
       if let Some(attrs_value) = node.get(&self.attrkey) {
         if let Some(object) = attrs_value.as_object() {
           for (name, value) in object {
-            let attr = value
-              .as_str()
-              .ok_or_else(|| Error::new(ErrorKind::Syntax, "Expected attribute to be a string."))?;
-            attrs.push((name.as_bytes(), attr.as_bytes()));
+            let attr = match value {
+              JsonValue::String(s) => s.clone(),
+              JsonValue::Bool(b) => b.to_string(),
+              JsonValue::Number(n) => n.to_string(),
+              _ => return Err(Error::new(ErrorKind::Syntax, "Expected attribute to be a string, bool or number.")),
+            };
+
+            attrs.push((name.as_bytes(), attr));
           }
         }
       }
@@ -345,7 +349,7 @@ impl XmlBuilder {
     // Write any attributes
     let attributes = self.tag_attributes(node)?;
     for attr in attributes {
-      tag.push_attribute(attr);
+      tag.push_attribute((attr.0, attr.1.as_bytes()));
     }
 
     // Write the tag as either empty / self-closing (<element />) or as a start tag (<element>)
@@ -622,7 +626,7 @@ mod tests {
     for attr in attrs {
       let (k, v) = attr;
       let a_key = std::str::from_utf8(k).unwrap();
-      let a_val = std::str::from_utf8(v).unwrap();
+      let a_val = v.as_str();
       let (e_key, e_val) = expected.pop().unwrap();
       assert_eq!(e_key, a_key);
       assert_eq!(e_val, a_val);
@@ -640,7 +644,7 @@ mod tests {
     for attr in attrs {
       let (k, v) = attr;
       let a_key = std::str::from_utf8(k).unwrap();
-      let a_val = std::str::from_utf8(v).unwrap();
+      let a_val = v.as_str();
       let (e_key, e_val) = expected.pop().unwrap();
       assert_eq!(e_key, a_key);
       assert_eq!(e_val, a_val);
