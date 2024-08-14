@@ -420,6 +420,11 @@ impl XmlBuilder {
       for (key, child) in object {
         // Traverse if the parent is not an attribute and not a character key
         let pk = parent_key.clone().unwrap_or_else(|| "".to_owned());
+
+        if key.starts_with("#") {
+          continue;
+        }
+
         if !self.is_attrkey(&pk) && !self.is_charkey(&pk) {
           if self.is_charkey(&key) {
             if self.indent.is_some() && !self.is_leaf_node(object) {
