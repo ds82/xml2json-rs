@@ -1,10 +1,10 @@
 use quick_xml::{events::*, Writer};
 
-use std::{cell::RefCell, convert::TryFrom, io::Cursor, ops::DerefMut, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, convert::TryFrom, io::Cursor, ops::DerefMut, rc::Rc};
 
 use crate::{
   error::{Error, ErrorKind},
-  utils
+  utils,
 };
 
 use serde_json::{Map as JsonMap, Value as JsonValue};
@@ -17,14 +17,14 @@ use serde_json::{Map as JsonMap, Value as JsonValue};
 /// [Declaration]: struct.Declaration.html
 pub enum Encoding {
   /// UTF-8
-  UTF8 // see https://www.w3resource.com/xml/declarations.php
+  UTF8, // see https://www.w3resource.com/xml/declarations.php
 }
 
 impl Encoding {
   /// Serialize `Encoding` as a `&' static str`
   pub fn to_string(&self) -> &'static str {
     match *self {
-      Encoding::UTF8 => "UTF-8"
+      Encoding::UTF8 => "UTF-8",
     }
   }
 }
@@ -36,7 +36,7 @@ impl TryFrom<&str> for Encoding {
   fn try_from(s: &str) -> Result<Self, Self::Error> {
     match s {
       "UTF-8" | "UTF8" => Ok(Encoding::UTF8),
-      _ => Err(Error::new(ErrorKind::Encoding, format!("Cannot convert from {} to Encoding.", s)))
+      _ => Err(Error::new(ErrorKind::Encoding, format!("Cannot convert from {} to Encoding.", s))),
     }
   }
 }
@@ -52,7 +52,7 @@ pub enum Version {
   /// 1.0
   XML10,
   /// 1.1
-  XML11
+  XML11,
 }
 
 impl Version {
@@ -60,7 +60,7 @@ impl Version {
   pub fn to_string(&self) -> &'static str {
     match *self {
       Version::XML10 => "1.0",
-      Version::XML11 => "1.1"
+      Version::XML11 => "1.1",
     }
   }
 }
@@ -73,7 +73,7 @@ impl TryFrom<&str> for Version {
     match s {
       "1.0" => Ok(Version::XML10),
       "1.1" => Ok(Version::XML11),
-      _ => Err(Error::new(ErrorKind::Unknown, format!("Cannot convert from {} to Version.", s)))
+      _ => Err(Error::new(ErrorKind::Unknown, format!("Cannot convert from {} to Version.", s))),
     }
   }
 }
@@ -81,17 +81,17 @@ impl TryFrom<&str> for Version {
 #[derive(Clone)]
 /// XML Declaration
 pub struct Declaration {
-  version:    Version,
-  encoding:   Option<Encoding>,
-  standalone: Option<bool>
+  version: Version,
+  encoding: Option<Encoding>,
+  standalone: Option<bool>,
 }
 
 impl Default for Declaration {
   fn default() -> Declaration {
     Declaration {
-      version:    Version::XML10,
-      encoding:   None,
-      standalone: None
+      version: Version::XML10,
+      encoding: None,
+      standalone: None,
     }
   }
 }
@@ -102,7 +102,7 @@ impl Declaration {
     Declaration {
       version,
       encoding,
-      standalone
+      standalone,
     }
   }
 
@@ -122,7 +122,7 @@ impl Declaration {
 /// XML Indentation rendering options
 pub struct Indentation {
   indent_char: u8,
-  indent_size: usize
+  indent_size: usize,
 }
 
 /// Optional indentation rendering
@@ -141,18 +141,18 @@ impl Default for Indentation {
     let indent_char = b' ';
     Indentation {
       indent_char,
-      indent_size: 2
+      indent_size: 2,
     }
   }
 }
 
 /// XmlBuilder configuration options
 pub struct XmlConfig {
-  attrkey:   Option<String>,
-  charkey:   Option<String>,
+  attrkey: Option<String>,
+  charkey: Option<String>,
   root_name: Option<String>,
-  decl:      Option<Declaration>,
-  rendering: Option<Indentation>
+  decl: Option<Declaration>,
+  rendering: Option<Indentation>,
 }
 
 impl Default for XmlConfig {
@@ -169,10 +169,10 @@ impl XmlConfig {
   pub fn new() -> XmlConfig {
     XmlConfig {
       root_name: None,
-      attrkey:   None,
-      charkey:   None,
-      decl:      None,
-      rendering: None
+      attrkey: None,
+      charkey: None,
+      decl: None,
+      rendering: None,
     }
   }
 
@@ -240,30 +240,30 @@ impl XmlConfig {
       charkey: self.charkey.clone().unwrap_or_else(|| "_".to_owned()),
       decl,
       writer: Rc::new(RefCell::new(writer)),
-      indent: self.rendering.clone()
+      indent: self.rendering.clone(),
     }
   }
 }
 
 /// XML builder
 pub struct XmlBuilder {
-  attrkey:   String,
-  charkey:   String,
+  attrkey: String,
+  charkey: String,
   root_name: String,
-  decl:      Declaration,
-  writer:    Rc<RefCell<Writer<Cursor<Vec<u8>>>>>,
-  indent:    Option<Indentation>
+  decl: Declaration,
+  writer: Rc<RefCell<Writer<Cursor<Vec<u8>>>>>,
+  indent: Option<Indentation>,
 }
 
 impl Default for XmlBuilder {
   fn default() -> XmlBuilder {
     XmlBuilder {
       root_name: "root".to_owned(),
-      attrkey:   "$".to_owned(),
-      charkey:   "_".to_owned(),
-      decl:      Declaration::default(),
-      writer:    Rc::new(RefCell::new(Writer::new(Cursor::new(Vec::new())))),
-      indent:    None
+      attrkey: "$".to_owned(),
+      charkey: "_".to_owned(),
+      decl: Declaration::default(),
+      writer: Rc::new(RefCell::new(Writer::new(Cursor::new(Vec::new())))),
+      indent: None,
     }
   }
 }
@@ -528,11 +528,14 @@ mod tests {
 
   #[test]
   fn build_complex() {
-    let mut builder = XmlConfig::new().charkey("_$").attrkey("_").finalize();
+    let mut builder = XmlConfig::new().root_name("test").charkey("_$").attrkey("_").finalize();
     let xml = builder
-      .build_from_json_string(r#"{"foo":{ "_":{"a1": 1, "a2": true}, "_$": "value" }}"#)
+      .build_from_json_string(r##"{ "foo":{ "_":{"a1": 1, "a2": true}, "_$": "value" }, "bar": { "_":{"a1": 1, "a2": true},"_$": 10, "#index": 1  }}"##)
       .unwrap();
-    assert_eq!(xml, r#"<?xml version="1.0"?><foo a1="1" a2="true">value</foo>"#);
+    assert_eq!(
+      xml,
+      r#"<?xml version="1.0"?><test><foo a1="1" a2="true">value</foo><bar a1="1" a2="true">10</bar></test>"#
+    );
   }
 
   #[test]
@@ -647,6 +650,7 @@ mod tests {
       let a_val = v.as_str();
       let (e_key, e_val) = expected.pop().unwrap();
       assert_eq!(e_key, a_key);
+
       assert_eq!(e_val, a_val);
     }
   }
