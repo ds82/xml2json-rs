@@ -1,6 +1,6 @@
-use quick_xml::{events::*, Writer};
+use quick_xml::{escape, events::*, Writer};
 
-use std::{borrow::Cow, cell::RefCell, convert::TryFrom, io::Cursor, ops::DerefMut, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, convert::TryFrom, fmt::Display, io::Cursor, ops::DerefMut, rc::Rc};
 
 use crate::{
   error::{Error, ErrorKind},
@@ -299,7 +299,7 @@ impl XmlBuilder {
         if let Some(object) = attrs_value.as_object() {
           for (name, value) in object {
             let attr = match value {
-              JsonValue::String(s) => s.clone(),
+              JsonValue::String(s) => String::from_utf8_lossy(escape::escape(s.clone().as_bytes()).as_ref()).into_owned(),
               JsonValue::Bool(b) => b.to_string(),
               JsonValue::Number(n) => n.to_string(),
               _ => return Err(Error::new(ErrorKind::Syntax, "Expected attribute to be a string, bool or number.")),
@@ -530,7 +530,9 @@ mod tests {
   fn build_complex() {
     let mut builder = XmlConfig::new().root_name("test").charkey("_$").attrkey("_").finalize();
     let xml = builder
-      .build_from_json_string(r##"{ "foo":{ "_":{"a1": 1, "a2": true}, "_$": "value" }, "bar": { "_":{"a1": 1, "a2": true},"_$": 10, "#index": 1  }}"##)
+      .build_from_json_string(
+        r##"{ "foo":{ "_":{"a1": 1, "a2": true}, "_$": "value" }, "bar": { "_":{"a1": 1, "a2": true},"_$": 10, "#index": 1  }}"##,
+      )
       .unwrap();
     assert_eq!(
       xml,
@@ -681,5 +683,24 @@ mod tests {
     let builder = XmlConfig::new().charkey("^").finalize();
     assert!(builder.is_charkey(&"^".to_owned()));
     assert!(!builder.is_charkey(&"_".to_owned()));
+  }
+
+  #[test]
+  fn encode_attribute_1() {
+    let mut builder = XmlConfig::new().root_name("test").charkey("_$").attrkey("_").finalize();
+    let xml = builder
+      .build_from_json_string(r##"{ "foo":{ "_":{"a1": "<>", "a2": "\""}, "_$": "value" }}"##)
+      .unwrap();
+    assert_eq!(
+      xml,
+      r#"<?xml version="1.0"?><test><foo a1="&lt;&gt;" a2="&quot;">value</foo></test>"#
+    );
+  }
+
+  #[test]
+  fn encode_value_1() {
+    let mut builder = XmlConfig::new().root_name("test").charkey("_$").attrkey("_").finalize();
+    let xml = builder.build_from_json_string(r##"{ "foo":{ "_$": "value < \" >"}}"##).unwrap();
+    assert_eq!(xml, r#"<?xml version="1.0"?><test><foo>value &lt; &quot; &gt;</foo></test>"#);
   }
 }
